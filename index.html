@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>BPM Tapper</title>
+<style>
+body { font-family: sans-serif; text-align: center; margin-top: 50px; }
+#bpm { font-size: 24px; margin-top: 20px; }
+button { font-size: 20px; padding: 10px 20px; }
+</style>
+</head>
+<body>
+<h1>BPM Tapper</h1>
+<p>Tap the button with your beat to measure BPM.</p>
+<button id="tapBtn">Tap</button>
+<div id="bpm">BPM: --</div>
+<script>
+const tapTimes = [];
+const maxTaps = 6;
+const button = document.getElementById('tapBtn');
+const bpmDisplay = document.getElementById('bpm');
+button.addEventListener('click', () => {
+  const now = Date.now();
+  tapTimes.push(now);
+  if (tapTimes.length > maxTaps) tapTimes.shift();
+  if (tapTimes.length >= 2) {
+    let intervals = [];
+    for (let i = 1; i < tapTimes.length; i++) {
+      intervals.push(tapTimes[i] - tapTimes[i-1]);
+    }
+    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
+    const bpm = Math.round(60000 / avgInterval);
+    bpmDisplay.textContent = 'BPM: ' + bpm;
+  }
+});
+</script>
+</body>
+</html>
