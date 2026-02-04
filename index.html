@@ -4,35 +4,218 @@
 <meta charset="UTF-8">
 <title>BPM Tapper</title>
 <style>
-body { font-family: sans-serif; text-align: center; margin-top: 50px; }
-#bpm { font-size: 24px; margin-top: 20px; }
-button { font-size: 20px; padding: 10px 20px; }
+  :root {
+    color-scheme: light dark;
+    --bg: #0f172a;
+    --card: rgba(255, 255, 255, 0.08);
+    --accent: #38bdf8;
+    --accent-strong: #0ea5e9;
+    --text: #f8fafc;
+    --muted: #94a3b8;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Inter", "Segoe UI", system-ui, sans-serif;
+    background: radial-gradient(circle at top, #1e293b, #0b1120 55%, #020617);
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 16px;
+  }
+
+  .app {
+    width: min(520px, 100%);
+    text-align: center;
+    background: var(--card);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 24px;
+    padding: 32px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.4);
+    backdrop-filter: blur(12px);
+  }
+
+  h1 {
+    margin: 0 0 8px;
+    font-size: 2.2rem;
+    letter-spacing: -0.02em;
+  }
+
+  p {
+    margin: 0 0 24px;
+    color: var(--muted);
+  }
+
+  .bpm-display {
+    font-size: 3.5rem;
+    font-weight: 700;
+    margin: 8px 0 4px;
+  }
+
+  .bpm-subtitle {
+    color: var(--muted);
+    font-size: 0.95rem;
+    margin-bottom: 24px;
+  }
+
+  .tap-button {
+    font-size: 1.4rem;
+    font-weight: 600;
+    padding: 16px 28px;
+    border-radius: 16px;
+    border: none;
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    color: #0b1120;
+    cursor: pointer;
+    transition: transform 0.08s ease, box-shadow 0.2s ease;
+    box-shadow: 0 12px 24px rgba(14, 165, 233, 0.35);
+    width: 100%;
+  }
+
+  .tap-button:active {
+    transform: scale(0.98);
+  }
+
+  .tap-button:focus-visible {
+    outline: 3px solid rgba(125, 211, 252, 0.9);
+    outline-offset: 4px;
+  }
+
+  .stats {
+    margin-top: 20px;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .stat {
+    padding: 12px;
+    border-radius: 16px;
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    font-size: 0.95rem;
+  }
+
+  .stat span {
+    display: block;
+    font-size: 1.1rem;
+    font-weight: 600;
+    margin-top: 4px;
+  }
+
+  .controls {
+    margin-top: 20px;
+    display: flex;
+    gap: 12px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .secondary-button {
+    padding: 10px 18px;
+    border-radius: 999px;
+    border: 1px solid rgba(148, 163, 184, 0.35);
+    background: transparent;
+    color: var(--text);
+    cursor: pointer;
+  }
+
+  .hint {
+    margin-top: 18px;
+    font-size: 0.9rem;
+    color: var(--muted);
+  }
 </style>
 </head>
 <body>
-<h1>BPM Tapper</h1>
-<p>Tap the button with your beat to measure BPM.</p>
-<button id="tapBtn">Tap</button>
-<div id="bpm">BPM: --</div>
+<div class="app">
+  <h1>BPM Tapper</h1>
+  <p>Tap along with your rhythm to instantly measure tempo.</p>
+  <div class="bpm-display" id="bpmValue">--</div>
+  <div class="bpm-subtitle" id="bpmSubtitle">Start tapping to calculate BPM</div>
+  <button class="tap-button" id="tapBtn">Tap / Press Space</button>
+  <div class="stats">
+    <div class="stat">Taps<span id="tapCount">0</span></div>
+    <div class="stat">Avg interval<span id="avgInterval">--</span></div>
+    <div class="stat">Last interval<span id="lastInterval">--</span></div>
+    <div class="stat">Consistency<span id="consistency">--</span></div>
+  </div>
+  <div class="controls">
+    <button class="secondary-button" id="resetBtn">Reset</button>
+  </div>
+  <div class="hint">Tip: keep a steady beat for the most accurate BPM.</div>
+</div>
 <script>
 const tapTimes = [];
-const maxTaps = 6;
+const maxTaps = 8;
+const resetThresholdMs = 2000;
 const button = document.getElementById('tapBtn');
-const bpmDisplay = document.getElementById('bpm');
-button.addEventListener('click', () => {
-  const now = Date.now();
+const resetButton = document.getElementById('resetBtn');
+const bpmValue = document.getElementById('bpmValue');
+const bpmSubtitle = document.getElementById('bpmSubtitle');
+const tapCount = document.getElementById('tapCount');
+const avgInterval = document.getElementById('avgInterval');
+const lastInterval = document.getElementById('lastInterval');
+const consistency = document.getElementById('consistency');
+
+const reset = () => {
+  tapTimes.length = 0;
+  bpmValue.textContent = '--';
+  bpmSubtitle.textContent = 'Start tapping to calculate BPM';
+  tapCount.textContent = '0';
+  avgInterval.textContent = '--';
+  lastInterval.textContent = '--';
+  consistency.textContent = '--';
+};
+
+const computeConsistency = (intervals, average) => {
+  if (!intervals.length) return '--';
+  const variance =
+    intervals.reduce((sum, interval) => sum + (interval - average) ** 2, 0) /
+    intervals.length;
+  const stdDev = Math.sqrt(variance);
+  const score = Math.max(0, 100 - (stdDev / average) * 100);
+  return `${Math.round(score)}%`;
+};
+
+const registerTap = () => {
+  const now = performance.now();
+  if (tapTimes.length && now - tapTimes[tapTimes.length - 1] > resetThresholdMs) {
+    reset();
+  }
   tapTimes.push(now);
   if (tapTimes.length > maxTaps) tapTimes.shift();
+  tapCount.textContent = `${tapTimes.length}`;
+
   if (tapTimes.length >= 2) {
-    let intervals = [];
-    for (let i = 1; i < tapTimes.length; i++) {
-      intervals.push(tapTimes[i] - tapTimes[i-1]);
-    }
-    const avgInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-    const bpm = Math.round(60000 / avgInterval);
-    bpmDisplay.textContent = 'BPM: ' + bpm;
+    const intervals = tapTimes.slice(1).map((time, index) => time - tapTimes[index]);
+    const average = intervals.reduce((sum, value) => sum + value, 0) / intervals.length;
+    const bpm = Math.round(60000 / average);
+    bpmValue.textContent = `${bpm}`;
+    bpmSubtitle.textContent = 'BPM (average of recent taps)';
+    avgInterval.textContent = `${Math.round(average)} ms`;
+    lastInterval.textContent = `${Math.round(intervals[intervals.length - 1])} ms`;
+    consistency.textContent = computeConsistency(intervals, average);
+  }
+};
+
+button.addEventListener('click', registerTap);
+resetButton.addEventListener('click', reset);
+
+document.addEventListener('keydown', (event) => {
+  if (event.code === 'Space') {
+    event.preventDefault();
+    registerTap();
   }
 });
+
+reset();
 </script>
 </body>
 </html>
